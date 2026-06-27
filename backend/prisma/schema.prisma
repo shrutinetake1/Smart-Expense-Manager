@@ -1,0 +1,353 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── User ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  name            String
+  passwordHash    String
+  avatar          String?
+  role            Role      @default(USER)
+  isVerified      Boolean   @default(false)
+  verifyToken     String?
+  resetToken      String?
+  resetTokenExp   DateTime?
+  currency        String    @default("USD")
+  timezone        String    @default("UTC")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  expenses        Expense[]
+  incomes         Income[]
+  budgets         Budget[]
+  savingsGoals    SavingsGoal[]
+  categories      Category[]
+  notifications   Notification[]
+  monthlyReports  MonthlyReport[]
+  aiInsights      AIInsight[]
+  recurringExpenses RecurringExpense[]
+  refreshTokens   RefreshToken[]
+  activityLogs    ActivityLog[]
+  receipts        Receipt[]
+
+  @@index([email])
+  @@map("users")
+}
+
+// ─── Category ────────────────────────────────────────────────────────────────
+
+enum CategoryType {
+  EXPENSE
+  INCOME
+}
+
+model Category {
+  id        String       @id @default(uuid())
+  name      String
+  icon      String       @default("📦")
+  color     String       @default("#6366f1")
+  type      CategoryType
+  isDefault Boolean      @default(false)
+  userId    String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user      User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses  Expense[]
+  incomes   Income[]
+  budgets   Budget[]
+
+  @@index([userId])
+  @@index([type])
+  @@map("categories")
+}
+
+// ─── Expense ─────────────────────────────────────────────────────────────────
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  UPI
+  WALLET
+  OTHER
+}
+
+model Expense {
+  id              String        @id @default(uuid())
+  amount          Float
+  description     String
+  date            DateTime
+  paymentMethod   PaymentMethod @default(CASH)
+  merchant        String?
+  notes           String?
+  location        String?
+  tags            String[]      @default([])
+  isRecurring     Boolean       @default(false)
+  recurringInterval String?
+  userId          String
+  categoryId      String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        Category      @relation(fields: [categoryId], references: [id])
+  receipt         Receipt?
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([date])
+  @@index([userId, date])
+  @@map("expenses")
+}
+
+// ─── Income ──────────────────────────────────────────────────────────────────
+
+enum IncomeSource {
+  SALARY
+  FREELANCING
+  INVESTMENTS
+  BUSINESS
+  RENTAL
+  OTHER
+}
+
+model Income {
+  id              String       @id @default(uuid())
+  amount          Float
+  source          IncomeSource @default(OTHER)
+  description     String
+  date            DateTime
+  isRecurring     Boolean      @default(false)
+  recurringInterval String?
+  notes           String?
+  userId          String
+  categoryId      String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        Category?    @relation(fields: [categoryId], references: [id])
+
+  @@index([userId])
+  @@index([date])
+  @@index([userId, date])
+  @@map("incomes")
+}
+
+// ─── Budget ──────────────────────────────────────────────────────────────────
+
+model Budget {
+  id         String   @id @default(uuid())
+  amount     Float
+  spent      Float    @default(0)
+  month      Int
+  year       Int
+  userId     String
+  categoryId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@unique([userId, categoryId, month, year])
+  @@index([userId, month, year])
+  @@map("budgets")
+}
+
+// ─── Savings Goal ────────────────────────────────────────────────────────────
+
+model SavingsGoal {
+  id                  String   @id @default(uuid())
+  name                String
+  targetAmount        Float
+  currentAmount       Float    @default(0)
+  deadline            DateTime?
+  icon                String   @default("🎯")
+  color               String   @default("#6366f1")
+  monthlyContribution Float    @default(0)
+  isCompleted         Boolean  @default(false)
+  userId              String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("savings_goals")
+}
+
+// ─── Receipt ─────────────────────────────────────────────────────────────────
+
+model Receipt {
+  id        String   @id @default(uuid())
+  imageUrl  String
+  merchant  String?
+  amount    Float?
+  date      DateTime?
+  tax       Float?
+  items     Json?
+  expenseId String?  @unique
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expense   Expense? @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("receipts")
+}
+
+// ─── Notification ────────────────────────────────────────────────────────────
+
+enum NotificationType {
+  BUDGET_EXCEEDED
+  BUDGET_WARNING
+  GOAL_ACHIEVED
+  BILL_REMINDER
+  REPORT_READY
+  SYSTEM
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  title     String
+  message   String
+  type      NotificationType @default(SYSTEM)
+  isRead    Boolean          @default(false)
+  userId    String
+  createdAt DateTime         @default(now())
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ─── AI Insight ──────────────────────────────────────────────────────────────
+
+enum InsightType {
+  MONTHLY_SUMMARY
+  OVERSPENDING_ALERT
+  SAVINGS_SUGGESTION
+  SPENDING_HABIT
+  HEALTH_SCORE
+  PREDICTION
+  BUDGET_ADVICE
+  CATEGORY_SUGGESTION
+  SUBSCRIPTION_DETECTION
+}
+
+model AIInsight {
+  id        String      @id @default(uuid())
+  type      InsightType
+  content   Json
+  score     Float?
+  month     Int?
+  year      Int?
+  userId    String
+  createdAt DateTime    @default(now())
+
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, month, year])
+  @@map("ai_insights")
+}
+
+// ─── Recurring Expense ───────────────────────────────────────────────────────
+
+enum RecurringInterval {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model RecurringExpense {
+  id          String            @id @default(uuid())
+  amount      Float
+  description String
+  interval    RecurringInterval
+  nextDate    DateTime
+  merchant    String?
+  isActive    Boolean           @default(true)
+  categoryId  String?
+  userId      String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([nextDate])
+  @@map("recurring_expenses")
+}
+
+// ─── Monthly Report ──────────────────────────────────────────────────────────
+
+model MonthlyReport {
+  id        String   @id @default(uuid())
+  month     Int
+  year      Int
+  data      Json
+  userId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month, year])
+  @@index([userId])
+  @@map("monthly_reports")
+}
+
+// ─── Refresh Token ───────────────────────────────────────────────────────────
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  expiresAt DateTime
+  userId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─── Activity Log ────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  action    String
+  details   Json?
+  userId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
