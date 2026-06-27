@@ -1,6 +1,6 @@
 # Smart Expense Manager
 
-A production-ready, full-stack Smart Expense Manager SaaS with premium UI/UX, scalable backend architecture, JWT authentication, analytics dashboard, AI-powered insights, and responsive design.
+A full-stack Smart Expense Manager SaaS with premium UI/UX, scalable backend architecture, JWT authentication, analytics dashboard, AI-powered insights, and responsive design.
 
 ## Tech Stack
 
